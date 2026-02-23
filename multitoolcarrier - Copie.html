@@ -1,0 +1,723 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Carrier 61AQ - Suite Expert Multi-Outils</title>
+    
+    <script src="https://cdn.plot.ly/plotly-2.24.1.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
+    
+    <style>
+        :root { --primary: #005eb8; --bg: #f4f7f6; --panel: #ffffff; --text: #333; --border: #e0e0e0; }
+        body { margin: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: var(--bg); color: var(--text); display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+        
+        /* En-tête et Onglets */
+        header { background: var(--primary); color: white; display: flex; flex-direction: column; padding: 15px 20px 0 20px; z-index: 10; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
+        .header-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
+        .header-title { margin: 0; font-size: 1.4rem; font-weight: 600; }
+        
+        .tab-nav { display: flex; gap: 8px; margin-top: auto; }
+        .tab-btn { background: rgba(255,255,255,0.15); border: none; padding: 10px 24px; color: white; border-radius: 8px 8px 0 0; cursor: pointer; font-weight: bold; font-size: 0.95rem; transition: 0.2s; }
+        .tab-btn:hover { background: rgba(255,255,255,0.25); }
+        .tab-btn.active { background: var(--bg); color: var(--primary); box-shadow: 0 -2px 10px rgba(0,0,0,0.1); }
+
+        /* Conteneurs d'onglets */
+        .tab-pane { display: none; flex: 1; flex-direction: column; overflow: hidden; }
+        .tab-pane.active { display: flex; }
+
+        /* Barre d'outils de l'analyseur */
+        .analyzer-toolbar { background: white; padding: 10px 15px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); gap: 10px; flex-wrap: wrap; }
+        .toolbar-group { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+        
+        .marker-tool { display: flex; gap: 5px; align-items: center; background: var(--bg); padding: 5px 10px; border-radius: 6px; border: 1px solid var(--border); }
+        .marker-tool span { font-size: 0.85rem; font-weight: bold; }
+        .marker-tool input { padding: 4px; border-radius: 4px; border: 1px solid #ccc; font-size: 0.85rem; outline: none; }
+        
+        .alarm-toggle { display: flex; align-items: center; gap: 8px; background: rgba(255, 68, 68, 0.1); border: 1px solid rgba(255, 68, 68, 0.3); padding: 5px 12px; border-radius: 20px; cursor: pointer; transition: 0.3s; }
+        .alarm-toggle:hover { background: rgba(255, 68, 68, 0.2); }
+        .alarm-toggle input { cursor: pointer; width: 16px; height: 16px; margin: 0; }
+        .alarm-toggle span { font-size: 0.9rem; font-weight: bold; color: #c62828; }
+
+        .btn { padding: 6px 14px; cursor: pointer; border-radius: 4px; border: none; font-weight: bold; font-size: 0.9rem; transition: 0.2s; }
+        .btn-orange { background: #ff7f0e; color: white; }
+        .btn-orange:hover { background: #e67300; }
+        .btn-white { background: #ffffff; color: var(--text); border: 1px solid #ccc; }
+        .btn-white:hover { background: #f0f0f0; }
+        .btn-blue { background: #005eb8; color: white; }
+        .btn-blue:hover { background: #004494; }
+        .btn-light-blue { background: #cce0ff; color: var(--primary); }
+        .btn-light-blue:hover { background: #99c2ff; }
+
+        /* Mise en page Analyseur */
+        .main-container { display: flex; flex: 1; overflow: hidden; flex-direction: row; }
+        .sidebar { width: 320px; background: var(--panel); border-right: 1px solid var(--border); display: flex; flex-direction: column; z-index: 5; flex-shrink: 0; }
+        .sidebar-header { padding: 10px 15px; border-bottom: 1px solid var(--border); background: #f9f9f9; }
+        .sidebar-header input { width: 100%; padding: 8px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 6px; margin-top: 5px; font-size: 0.95rem;}
+        .var-list { flex: 1; overflow-y: auto; padding: 5px 0; }
+        .var-item { padding: 8px 15px; display: flex; align-items: center; font-size: 0.85rem; cursor: pointer; border-bottom: 1px solid #f0f0f0; touch-action: manipulation; }
+        .var-item:hover, .var-item:active { background: #eef5fb; }
+        .var-item input { margin-right: 12px; width: 16px; height: 16px; }
+        .group-label { font-size: 0.75rem; font-weight: bold; color: #888; text-transform: uppercase; padding: 10px 15px 5px; background: #fff; position: sticky; top: 0; z-index: 2;}
+
+        .content { flex: 1; display: flex; flex-direction: column; position: relative; padding: 10px; background: var(--bg); overflow: hidden; gap: 5px;}
+        
+        #drop-overlay { position: absolute; top: 10px; left: 10px; right: 10px; bottom: 10px; background: rgba(255,255,255,0.95); z-index: 100; display: flex; flex-direction: column; align-items: center; justify-content: center; border: 3px dashed var(--primary); border-radius: 12px; cursor: pointer; text-align: center; padding: 20px;}
+        #drop-overlay h2 { color: var(--primary); margin-bottom: 5px; font-size: 1.3rem;}
+        #drop-overlay p { color: #666; font-size: 0.9rem; }
+        
+        #plot-container { background: white; flex: 1; min-height: 200px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); padding: 5px; display: none; width: 100%; }
+
+        #resizer { height: 12px; background: #eef5fb; cursor: ns-resize; display: none; align-items: center; justify-content: center; border-radius: 4px; user-select: none; transition: background 0.2s; border: 1px solid #d0e3f5; }
+        #resizer:hover, #resizer.active { background: #cce0ff; }
+        #resizer::before { content: "≡"; color: #005eb8; font-weight: bold; font-size: 14px; line-height: 1; }
+
+        #alarm-panel { background: white; flex: 0 0 220px; min-height: 100px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); display: none; flex-direction: column; overflow: hidden; }
+        .alarm-panel-header { background: #f9f9f9; padding: 10px 15px; font-weight: bold; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+        .alarm-table-container { flex: 1; overflow-y: auto; }
+        #alarm-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+        #alarm-table th, #alarm-table td { padding: 8px 12px; border-bottom: 1px solid #f0f0f0; text-align: left; }
+        #alarm-table th { background: #fff; position: sticky; top: 0; z-index: 2; box-shadow: 0 2px 2px -1px rgba(0,0,0,0.1); color: #666; }
+        #alarm-table tr:hover { background: #fff5eb; }
+        .code-badge { background: #ffebee; color: #c62828; padding: 2px 6px; border-radius: 4px; font-weight: bold; border: 1px solid #ffcdd2;}
+        .chk-large { width: 16px; height: 16px; cursor: pointer; }
+
+        /* Mise en page Fusionneur */
+        .fusion-wrapper { display: flex; flex-direction: column; align-items: center; justify-content: center; flex: 1; overflow-y: auto; padding: 40px 20px; }
+        .fusion-card { background: white; padding: 40px; border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,0.08); text-align: center; max-width: 600px; width: 100%; border: 1px solid var(--border); }
+        .fusion-card h2 { color: var(--primary); margin-top: 0; margin-bottom: 15px; }
+        .fusion-card p { color: #666; line-height: 1.5; margin-bottom: 25px; }
+        .fusion-input-zone { background: #f9f9f9; border: 2px dashed #ccc; padding: 30px; border-radius: 8px; margin-bottom: 25px; transition: 0.3s; }
+        .fusion-input-zone:hover { border-color: var(--primary); background: #f0f7ff; }
+        #status-fusion { margin-top: 20px; font-weight: bold; color: #2ca02c; font-size: 1.1rem; min-height: 24px;}
+
+        @media (max-width: 900px) {
+            .analyzer-toolbar { flex-direction: column; align-items: stretch; }
+            .toolbar-group { justify-content: center; }
+            .main-container { flex-direction: column; }
+            .sidebar { width: 100%; height: 35vh; border-right: none; border-bottom: 3px solid var(--primary); }
+            #drop-overlay { margin: 0; }
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="header-top">
+            <h1 class="header-title">Carrier 61AQ - Suite Expert Multi-Outils</h1>
+        </div>
+        <div class="tab-nav">
+            <button id="btn-analyseur" class="tab-btn active" onclick="switchTab('analyseur')">📊 Analyseur & BlackBox</button>
+            <button id="btn-fusion" class="tab-btn" onclick="switchTab('fusion')">🔗 Fusionneur de Trend (CSV)</button>
+        </div>
+    </header>
+
+    <div id="tab-analyseur" class="tab-pane active">
+        
+        <div class="analyzer-toolbar">
+            <div class="toolbar-group">
+                <label class="alarm-toggle" title="Colorer le fond du graphique pendant les périodes d'alarme">
+                    <input type="checkbox" id="toggle-alarm-zones" onchange="drawPlot()" checked>
+                    <span>🔴 Zones d'Alarmes</span>
+                </label>
+
+                <div class="marker-tool">
+                    <span>📍 Marqueur :</span>
+                    <input type="time" step="1" id="evt-time">
+                    <button class="btn btn-orange" onclick="addCustomEvent()">Placer</button>
+                    <button class="btn btn-white" onclick="clearCustomEvents()">Effacer</button>
+                </div>
+            </div>
+
+            <div class="toolbar-group">
+                <button class="btn btn-light-blue" onclick="document.getElementById('file-input').click()">+ Ajouter CSV à l'analyse</button>
+                <button class="btn btn-white" onclick="location.reload()">🔄 Réinitialiser tout</button>
+            </div>
+        </div>
+
+        <input type="file" id="file-input" style="display:none" accept=".csv" multiple>
+
+        <div class="main-container">
+            <div class="sidebar">
+                <div class="sidebar-header">
+                    <input type="text" id="search-var" placeholder="🔍 Filtrer (ex: SST, LWT...)" onkeyup="filterVars()">
+                    <div id="data-stats" style="font-size: 0.75rem; color: #666; margin-top: 5px; text-align: center;">Aucun point chargé</div>
+                </div>
+                <div class="var-list" id="var-list"></div>
+            </div>
+
+            <div class="content">
+                <div id="drop-overlay" onclick="document.getElementById('file-input').click()">
+                    <svg width="50" height="50" viewBox="0 0 24 24" fill="none" stroke="#005eb8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+                    <h2>Glissez vos fichiers CSV (Trend ou BlackBox) ici</h2>
+                    <p>Conseil : Si vous avez plusieurs Trend, utilisez d'abord le "Fusionneur" !</p>
+                </div>
+                
+                <div id="plot-container"></div>
+                <div id="resizer" title="Glisser pour ajuster la taille"></div>
+                
+                <div id="alarm-panel">
+                    <div class="alarm-panel-header">
+                        <span>⚠️ Historique des Pannes / Alarmes</span>
+                        <span style="font-weight: normal; font-size: 0.8rem; color: #666;">(Si aucune n'est cochée, toutes s'affichent)</span>
+                    </div>
+                    <div class="alarm-table-container">
+                        <table id="alarm-table">
+                            <thead>
+                                <tr>
+                                    <th>Afficher</th>
+                                    <th>Code Alarme</th>
+                                    <th>Début (Apparition)</th>
+                                    <th>Fin (Disparition)</th>
+                                    <th>Durée</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="alarm-table-body">
+                                </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="tab-fusion" class="tab-pane">
+        <div class="fusion-wrapper">
+            <div class="fusion-card">
+                <h2>Fusionneur de fichiers Trend</h2>
+                <p>Cet outil assemble plusieurs petits fichiers Trend CSV (ex: 20 jours différents) en un seul fichier massif continu. Idéal pour avoir une vue sur le long terme sans couper l'axe du temps.</p>
+                
+                <div class="fusion-input-zone">
+                    <input type="file" id="files-fusion" multiple accept=".csv" style="font-size: 1rem; cursor: pointer;" />
+                </div>
+                
+                <button class="btn btn-blue" style="font-size: 1.1rem; padding: 12px 24px; width: 100%;" onclick="mergeFiles()">Fusionner et Télécharger</button>
+                <div id="status-fusion"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ==========================================
+        // GESTION DES ONGLETS
+        // ==========================================
+        function switchTab(tabId) {
+            // Masquer tout
+            document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            
+            // Afficher l'onglet ciblé
+            document.getElementById('tab-' + tabId).classList.add('active');
+            document.getElementById('btn-' + tabId).classList.add('active');
+
+            // Si on revient sur l'analyseur, on force Plotly à se redimensionner
+            if (tabId === 'analyseur' && document.getElementById('plot-container').style.display === 'block') {
+                Plotly.Plots.resize('plot-container');
+            }
+        }
+
+
+        // ==========================================
+        // LOGIQUE DU FUSIONNEUR (Onglet 2)
+        // ==========================================
+        async function mergeFiles() {
+            const fileInput = document.getElementById('files-fusion');
+            const status = document.getElementById('status-fusion');
+            const files = Array.from(fileInput.files);
+
+            if (files.length === 0) {
+                alert("Veuillez sélectionner au moins un fichier CSV à fusionner.");
+                return;
+            }
+
+            // Tri alphabétique (respecte l'ordre chronologique des noms de fichiers AWHP)
+            files.sort((a, b) => a.name.localeCompare(b.name));
+
+            let mergedContent = "";
+            status.style.color = "#ff7f0e";
+            status.innerText = "Fusion en cours... Merci de patienter.";
+
+            // Timeout pour laisser le DOM se rafraîchir et afficher le statut "en cours"
+            setTimeout(async () => {
+                for (let i = 0; i < files.length; i++) {
+                    const text = await files[i].text();
+                    const lines = text.split(/\r?\n/);
+
+                    if (i === 0) {
+                        // Premier fichier : on garde tout (en-tête + données)
+                        mergedContent += text.trim() + "\n";
+                    } else {
+                        // Fichiers suivants : on ignore les 2 premières lignes d'en-tête
+                        const dataLines = lines.slice(2).filter(line => line.trim() !== "");
+                        if (dataLines.length > 0) {
+                            mergedContent += dataLines.join('\n') + '\n';
+                        }
+                    }
+                }
+
+                // Création du fichier de sortie
+                const blob = new Blob([mergedContent], { type: 'text/csv' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = "trend_total_fusionne.csv";
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                
+                status.style.color = "#2ca02c";
+                status.innerText = `Terminé ! ${files.length} fichiers fusionnés avec succès.`;
+            }, 100);
+        }
+
+
+        // ==========================================
+        // LOGIQUE DE L'ANALYSEUR (Onglet 1)
+        // ==========================================
+        let allData = []; 
+        let rawFields = new Set(); 
+        let customEvents = []; 
+        let selectedVars = new Set(); 
+        let alarmZones = []; 
+        let activeAlarmFilters = new Set(); 
+        
+        const colorPalette = ['#1f77b4', '#d62728', '#2ca02c', '#ff7f0e', '#9467bd', '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf'];
+        const dummyDateStr = "2024/01/01"; 
+
+        const dropOverlay = document.getElementById('drop-overlay');
+        const fileAnalyzerInput = document.getElementById('file-input');
+
+        dropOverlay.addEventListener('dragover', (e) => { e.preventDefault(); dropOverlay.style.background = '#eef5fb'; });
+        dropOverlay.addEventListener('dragleave', (e) => { e.preventDefault(); dropOverlay.style.background = 'rgba(255,255,255,0.95)'; });
+        dropOverlay.addEventListener('drop', (e) => { e.preventDefault(); processAnalyzerFiles(e.dataTransfer.files); });
+        fileAnalyzerInput.addEventListener('change', (e) => processAnalyzerFiles(e.target.files));
+
+        // --- Redimensionnement manuel (Resizer) ---
+        const resizer = document.getElementById('resizer');
+        const alarmPanel = document.getElementById('alarm-panel');
+        let isResizing = false;
+        let startY, startHeight;
+
+        resizer.addEventListener('mousedown', function(e) {
+            isResizing = true;
+            startY = e.clientY;
+            startHeight = alarmPanel.getBoundingClientRect().height;
+            resizer.classList.add('active');
+            document.body.style.cursor = 'ns-resize';
+            e.preventDefault(); 
+        });
+
+        document.addEventListener('mousemove', function(e) {
+            if (!isResizing) return;
+            const dy = startY - e.clientY; 
+            const newHeight = startHeight + dy;
+            
+            if (newHeight > 100 && newHeight < window.innerHeight - 250) {
+                alarmPanel.style.flex = `0 0 ${newHeight}px`;
+                Plotly.Plots.resize('plot-container');
+            }
+        });
+
+        document.addEventListener('mouseup', function() {
+            if (isResizing) {
+                isResizing = false;
+                resizer.classList.remove('active');
+                document.body.style.cursor = '';
+                Plotly.Plots.resize('plot-container');
+            }
+        });
+
+        // --- Moteur de lecture ---
+        function processAnalyzerFiles(files) {
+            if (!files || files.length === 0) return;
+            
+            let filesProcessed = 0;
+            
+            Array.from(files).forEach(file => {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const text = e.target.result;
+                    const lines = text.split(/\r?\n/);
+                    
+                    let isTrendFile = false;
+                    let csvData = "";
+                    
+                    if (lines[0] && lines[0].startsWith('(s);Date;Time;')) {
+                        isTrendFile = true;
+                        csvData = lines[0] + '\n' + lines.slice(2).filter(l => l.includes(';')).join('\n');
+                    } else {
+                        let dataStartIndex = -1;
+                        let alarmTimeStr = null;
+                        let alarmCode = "DÉFAUT";
+                        
+                        for (let i = 0; i < lines.length; i++) {
+                            if (lines[i].includes('Alarm Code:')) alarmCode = lines[i].split(':')[1].trim();
+                            if (lines[i].includes('Event Time:')) alarmTimeStr = lines[i].split(':').slice(1).join(':').trim();
+                            if (lines[i].startsWith('Time;')) { dataStartIndex = i; break; }
+                        }
+                        
+                        if (dataStartIndex !== -1) {
+                            csvData = lines.slice(dataStartIndex).filter(l => l.includes(';') && !l.includes('[END_COLLECT]')).join('\n');
+                            if (alarmTimeStr) {
+                                customEvents.push({ time: new Date(`${dummyDateStr} ${alarmTimeStr}`), label: `ALARME ${alarmCode}`, color: 'red' });
+                            }
+                        }
+                    }
+
+                    if (csvData) {
+                        Papa.parse(csvData, {
+                            delimiter: ';', header: true, dynamicTyping: true, skipEmptyLines: true,
+                            complete: function(results) {
+                                results.data.forEach(row => {
+                                    let tDate;
+                                    if (isTrendFile && row['Date'] && row['Time']) {
+                                        let d = row['Date'].split('.'); 
+                                        tDate = new Date(`20${d[2]}/${d[1]}/${d[0]} ${row['Time']}`);
+                                    } else if (row['Time']) {
+                                        tDate = new Date(`${dummyDateStr} ${row['Time']}`);
+                                    }
+                                    
+                                    if (tDate && !isNaN(tDate)) {
+                                        row._timestamp = tDate; 
+                                        allData.push(row);
+                                    }
+                                });
+                                
+                                results.meta.fields.forEach(f => {
+                                    if (f && f !== 'Time' && f !== 'Date' && f !== '(s)' && !f.startsWith('Unnamed')) {
+                                        rawFields.add(f);
+                                    }
+                                });
+                                
+                                filesProcessed++;
+                                if (filesProcessed === files.length) finalizeDataProcessing();
+                            }
+                        });
+                    } else {
+                        filesProcessed++;
+                        if (filesProcessed === files.length) finalizeDataProcessing();
+                    }
+                };
+                reader.readAsText(file, "ISO-8859-1");
+            });
+            
+            fileAnalyzerInput.value = "";
+        }
+
+        function finalizeDataProcessing() {
+            if (allData.length === 0) return;
+            
+            allData.sort((a, b) => a._timestamp - b._timestamp);
+            document.getElementById('data-stats').innerHTML = `<b>${allData.length}</b> points de mesure chargés`;
+            
+            calculateAlarmZones();
+            buildAlarmList();
+            buildSidebar(Array.from(rawFields));
+            
+            document.getElementById('drop-overlay').style.display = 'none';
+            document.getElementById('plot-container').style.display = 'block';
+            document.getElementById('alarm-panel').style.display = 'flex';
+            document.getElementById('resizer').style.display = 'flex'; 
+            
+            if (selectedVars.size === 0) {
+                const defaultSelection = ['TEMP_EWT(°C)', 'TEMP_LWT(°C)', 'TEMP_SST_A(°C)', 'TEMP_EWT', 'TEMP_LWT', 'TEMP_SST_A', 'PRESSURE_SP_A'];
+                defaultSelection.forEach(val => {
+                    if(rawFields.has(val)) toggleVar(val, true);
+                });
+            } else {
+                drawPlot();
+            }
+        }
+
+        function calculateAlarmZones() {
+            alarmZones = [];
+            activeAlarmFilters.clear();
+            
+            let currentAlarmStart = null;
+            let currentAlarmCodes = new Set();
+            let lastRowTime = null;
+
+            const alarmColName = Array.from(rawFields).find(f => f.toLowerCase().includes('alarm_1c') || f.toLowerCase() === 'alarm');
+            if (!alarmColName) return;
+
+            for (let i = 0; i < allData.length; i++) {
+                let row = allData[i];
+                let val = parseFloat(row[alarmColName]);
+                let isAlarm = (!isNaN(val) && val !== 0);
+
+                if (isAlarm) {
+                    if (currentAlarmStart === null) {
+                        currentAlarmStart = row._timestamp;
+                        currentAlarmCodes.clear();
+                    }
+                    currentAlarmCodes.add(val);
+                } else {
+                    if (currentAlarmStart !== null) {
+                        alarmZones.push({
+                            start: currentAlarmStart,
+                            end: row._timestamp, 
+                            code: Array.from(currentAlarmCodes).join(' + ')
+                        });
+                        currentAlarmStart = null;
+                    }
+                }
+                lastRowTime = row._timestamp;
+            }
+
+            if (currentAlarmStart !== null) {
+                alarmZones.push({
+                    start: currentAlarmStart,
+                    end: allData[allData.length - 1]._timestamp,
+                    code: Array.from(currentAlarmCodes).join(' + ')
+                });
+            }
+        }
+
+        function buildAlarmList() {
+            const tbody = document.getElementById('alarm-table-body');
+            tbody.innerHTML = '';
+            
+            if (alarmZones.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; color:#888;">Aucune alarme détectée dans ces fichiers.</td></tr>';
+                return;
+            }
+
+            const trAll = document.createElement('tr');
+            trAll.style.background = '#f4f7f6';
+            trAll.innerHTML = `
+                <td><input type="checkbox" id="check-all-alarms" class="chk-large" onchange="toggleAllAlarms(this.checked)" title="Tout cocher / décocher"></td>
+                <td colspan="4" style="font-weight:bold; color:var(--primary); font-size: 0.8rem;">Actions Globales :</td>
+                <td>
+                    <button class="btn btn-blue" style="font-size:0.8rem; padding:4px 8px;" onclick="zoomToSelection()">🔍 Zoom Sélection</button>
+                    <button class="btn btn-white" style="border:1px solid #ccc; font-size:0.8rem; margin-left: 5px;" onclick="resetZoom()">Annuler Zoom</button>
+                </td>
+            `;
+            tbody.appendChild(trAll);
+
+            alarmZones.forEach((zone, index) => {
+                const tr = document.createElement('tr');
+                const startStr = zone.start.toLocaleString('fr-FR');
+                const endStr = zone.end.toLocaleString('fr-FR');
+                const diffMs = zone.end.getTime() - zone.start.getTime();
+                const diffMins = Math.round(diffMs / 60000);
+                let durationStr = diffMins + ' min';
+                if (diffMins > 60) {
+                    const h = Math.floor(diffMins / 60);
+                    const m = diffMins % 60;
+                    durationStr = `${h}h ${m}m`;
+                }
+
+                tr.innerHTML = `
+                    <td><input type="checkbox" class="alarm-chk chk-large" value="${index}" onchange="toggleAlarmFilter(${index}, this.checked)"></td>
+                    <td><span class="code-badge">${zone.code}</span></td>
+                    <td>${startStr}</td>
+                    <td>${endStr}</td>
+                    <td>${durationStr}</td>
+                    <td><button class="btn btn-white" style="border:1px solid #ccc; font-size:0.8rem; padding:4px 8px;" onclick="zoomToSingleAlarm(${index})" title="Voir cette alarme (sans modifier la sélection)">👁️ Voir (24h)</button></td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function toggleAlarmFilter(index, isChecked) {
+            if (isChecked) activeAlarmFilters.add(index);
+            else activeAlarmFilters.delete(index);
+            updateCheckAllBox();
+            document.getElementById('toggle-alarm-zones').checked = true; 
+            drawPlot(); 
+        }
+
+        function toggleAllAlarms(isChecked) {
+            const checkboxes = document.querySelectorAll('.alarm-chk');
+            activeAlarmFilters.clear();
+            if (isChecked) {
+                checkboxes.forEach((chk, i) => { chk.checked = true; activeAlarmFilters.add(i); });
+            } else {
+                checkboxes.forEach(chk => chk.checked = false);
+            }
+            document.getElementById('toggle-alarm-zones').checked = true;
+            drawPlot();
+        }
+
+        function updateCheckAllBox() {
+            const checkAll = document.getElementById('check-all-alarms');
+            if (!checkAll) return;
+            if (activeAlarmFilters.size === alarmZones.length && alarmZones.length > 0) {
+                checkAll.checked = true; checkAll.indeterminate = false;
+            } else if (activeAlarmFilters.size === 0) {
+                checkAll.checked = false; checkAll.indeterminate = false;
+            } else {
+                checkAll.checked = false; checkAll.indeterminate = true; 
+            }
+        }
+
+        function zoomToSelection() {
+            if (activeAlarmFilters.size === 0) { resetZoom(); return; }
+            const selectedZones = Array.from(activeAlarmFilters).map(i => alarmZones[i]);
+            const minTime = Math.min(...selectedZones.map(z => z.start.getTime()));
+            const maxTime = Math.max(...selectedZones.map(z => z.end.getTime()));
+            const rangeStart = new Date(minTime - 2 * 3600 * 1000);
+            const rangeEnd = new Date(maxTime + 2 * 3600 * 1000);
+            Plotly.relayout('plot-container', { 'xaxis.range': [rangeStart, rangeEnd] });
+        }
+
+        function zoomToSingleAlarm(index) {
+            const zone = alarmZones[index];
+            const centerTime = zone.start.getTime();
+            const rangeStart = new Date(centerTime - 6 * 3600 * 1000);
+            const rangeEnd = new Date(centerTime + 18 * 3600 * 1000);
+            Plotly.relayout('plot-container', { 'xaxis.range': [rangeStart, rangeEnd] });
+        }
+
+        function resetZoom() { Plotly.relayout('plot-container', {'xaxis.autorange': true}); }
+
+        function addCustomEvent() {
+            const tStr = document.getElementById('evt-time').value;
+            if (!tStr) { alert("Veuillez renseigner l'heure !"); return; }
+            if (allData.length === 0) return;
+            const fd = allData[0]._timestamp;
+            const baseDateStr = `${fd.getFullYear()}/${(fd.getMonth()+1).toString().padStart(2,'0')}/${fd.getDate().toString().padStart(2,'0')}`;
+            const finalDate = new Date(`${baseDateStr} ${tStr}`);
+            if (!isNaN(finalDate)) {
+                customEvents.push({ time: finalDate, label: `OBS: ${tStr}`, color: '#ff7f0e' });
+                drawPlot();
+            }
+        }
+
+        function clearCustomEvents() { customEvents = customEvents.filter(e => e.color === 'red'); drawPlot(); }
+
+        function buildSidebar(fields) {
+            const listObj = document.getElementById('var-list');
+            listObj.innerHTML = '';
+            const groups = {
+                "TEMPÉRATURES": fields.filter(f => f.includes('TEMP_')),
+                "PRESSIONS": fields.filter(f => f.includes('PRESSURE_') || f.includes('P_OUT') || f.includes('P_IN')),
+                "ACTIONNEURS": fields.filter(f => f.includes('OUTPUTS_') || f.includes('CAPACTRL_') || f.includes('DEFROST')),
+                "HYDRAULIQUE": fields.filter(f => f.includes('PUMP') && !f.includes('P_OUT') && !f.includes('P_IN')),
+                "AUTRES": fields.filter(f => !f.includes('TEMP_') && !f.includes('PRESSURE_') && !f.includes('P_OUT') && !f.includes('P_IN') && !f.includes('OUTPUTS_') && !f.includes('CAPACTRL_') && !f.includes('PUMP') && !f.includes('DEFROST'))
+            };
+
+            for (const [groupName, vars] of Object.entries(groups)) {
+                if (vars.length === 0) continue;
+                const groupDiv = document.createElement('div');
+                groupDiv.className = 'group-label';
+                groupDiv.innerText = groupName;
+                listObj.appendChild(groupDiv);
+
+                vars.forEach(v => {
+                    const item = document.createElement('label');
+                    item.className = 'var-item var-row';
+                    const cleanName = v.replace(/\(.*?\)/g, ''); 
+                    const isChecked = selectedVars.has(v) ? 'checked' : '';
+                    const safeId = v.replace(/[^a-zA-Z0-9]/g, '_');
+                    item.innerHTML = `<input type="checkbox" id="chk-${safeId}" value="${v}" onchange="toggleVar('${v}', this.checked); drawPlot()" ${isChecked}> ${cleanName}`;
+                    listObj.appendChild(item);
+                });
+            }
+        }
+
+        function toggleVar(varName, isChecked) {
+            const safeId = varName.replace(/[^a-zA-Z0-9]/g, '_');
+            const checkbox = document.getElementById(`chk-${safeId}`);
+            if(checkbox) checkbox.checked = isChecked;
+            if (isChecked) selectedVars.add(varName); else selectedVars.delete(varName);
+            drawPlot(); 
+        }
+
+        function drawPlot() {
+            if (selectedVars.size === 0) { Plotly.purge('plot-container'); return; }
+
+            let traces = [];
+            let colorIndex = 0;
+            const timeArray = allData.map(d => d._timestamp);
+
+            selectedVars.forEach(varName => {
+                let yAxisID = 'y'; let yAxisName = 'y';
+                if (varName.includes('OUTPUTS_') || varName.includes('FLOW') || varName.includes('fanSp') || varName.includes('CAPA_T') || varName.includes('(%)')) {
+                    yAxisID = 'y2'; yAxisName = 'y2';
+                }
+                let yValues = allData.map(row => {
+                    let val = row[varName];
+                    if(typeof val === 'string') val = parseFloat(val.replace(',','.'));
+                    return isNaN(val) ? null : val;
+                });
+                const cleanLegend = varName.replace(/\(.*?\)/g, '');
+                traces.push({
+                    x: timeArray, y: yValues, name: cleanLegend, type: 'scatter', mode: 'lines', yaxis: yAxisName,
+                    line: { width: 2, color: colorPalette[colorIndex % colorPalette.length] }
+                });
+                colorIndex++;
+            });
+
+            const plotDiv = document.getElementById('plot-container');
+            let currentXRange = null;
+            if (plotDiv.layout && plotDiv.layout.xaxis && plotDiv.layout.xaxis.range) {
+                currentXRange = plotDiv.layout.xaxis.range;
+            }
+
+            const layout = {
+                hovermode: 'x unified', plot_bgcolor: '#ffffff', paper_bgcolor: '#ffffff',
+                margin: { l: 40, r: 40, t: 40, b: 30 }, 
+                xaxis: { type: 'date', tickformat: '%d/%m %H:%M:%S', showgrid: true, gridcolor: '#f0f0f0', range: currentXRange },
+                yaxis: { showgrid: true, gridcolor: '#f0f0f0', zeroline: false },
+                yaxis2: { overlaying: 'y', side: 'right', showgrid: false, zeroline: false },
+                legend: { orientation: 'h', y: -0.15, x: 0, font: {size: 10} },
+                shapes: [], annotations: []
+            };
+
+            const showAlarmZones = document.getElementById('toggle-alarm-zones').checked;
+            
+            if (showAlarmZones && alarmZones.length > 0) {
+                alarmZones.forEach((zone, index) => {
+                    if (activeAlarmFilters.size > 0 && !activeAlarmFilters.has(index)) return;
+
+                    layout.shapes.push({
+                        type: 'rect', xref: 'x', yref: 'paper', x0: zone.start, x1: zone.end, y0: 0, y1: 1,
+                        fillcolor: 'rgba(255, 68, 68, 0.15)', line: { width: 0 }, layer: 'below'
+                    });
+
+                    let midTime = new Date((zone.start.getTime() + zone.end.getTime()) / 2);
+                    layout.annotations.push({
+                        xref: 'x', yref: 'paper', x: midTime, y: 1.05, text: `⚠️ ${zone.code}`,
+                        showarrow: false, font: { color: '#cc0000', size: 10, weight: 'bold' }
+                    });
+                });
+            }
+
+            customEvents.forEach((evt, index) => {
+                layout.shapes.push({
+                    type: 'line', xref: 'x', yref: 'paper', x0: evt.time, x1: evt.time, y0: 0, y1: 1, 
+                    line: { color: evt.color, width: 2, dash: 'dot' }
+                });
+                layout.annotations.push({
+                    xref: 'x', yref: 'paper', x: evt.time, y: 0.9, text: evt.label, 
+                    showarrow: true, arrowhead: 2, ax: 0, ay: -20 - ((index % 3) * 15),
+                    font: { color: 'white', size: 10, fontfamily: 'sans-serif' }, bgcolor: evt.color, borderpad: 3, bordercolor: evt.color
+                });
+            });
+
+            Plotly.react('plot-container', traces, layout, {
+                responsive: true, displaylogo: false, modeBarButtonsToRemove: ['lasso2d', 'select2d', 'autoScale2d']
+            });
+            window.dispatchEvent(new Event('resize'));
+        }
+
+        function filterVars() {
+            let input = document.getElementById('search-var').value.toUpperCase();
+            let items = document.getElementsByClassName('var-row');
+            for (let i = 0; i < items.length; i++) {
+                let txtValue = items[i].textContent || items[i].innerText;
+                items[i].style.display = txtValue.toUpperCase().indexOf(input) > -1 ? "flex" : "none";
+            }
+        }
+        
+        window.addEventListener('resize', function() {
+            if(document.getElementById('plot-container').style.display === 'block') {
+                Plotly.Plots.resize('plot-container');
+            }
+        });
+    </script>
+</body>
+</html>
