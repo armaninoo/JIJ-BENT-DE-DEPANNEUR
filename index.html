@@ -3,10 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Carrier Multi-Outils</title>
+    <title>JIJ BENT DE DEPANNEUR</title>
     
     <script src="https://cdn.plot.ly/plotly-2.24.1.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     
     <style>
         :root { --primary: #005eb8; --bg: #f4f7f6; --panel: #ffffff; --text: #333; --border: #e0e0e0; }
@@ -42,6 +43,8 @@
         .btn { padding: 6px 14px; cursor: pointer; border-radius: 4px; border: none; font-weight: bold; font-size: 0.9rem; transition: 0.2s; }
         .btn-orange { background: #ff7f0e; color: white; }
         .btn-orange:hover { background: #e67300; }
+        .btn-green { background: #28a745; color: white; }
+        .btn-green:hover { background: #218838; }
         .btn-white { background: #ffffff; color: var(--text); border: 1px solid #ccc; }
         .btn-white:hover { background: #f0f0f0; }
         .btn-blue { background: #005eb8; color: white; }
@@ -82,14 +85,14 @@
         .code-badge { background: #ffebee; color: #c62828; padding: 2px 6px; border-radius: 4px; font-weight: bold; border: 1px solid #ffcdd2;}
         .chk-large { width: 16px; height: 16px; cursor: pointer; }
 
-        /* Mise en page Fusionneur */
+        /* Mise en page Fusionneur / Convertisseur */
         .fusion-wrapper { display: flex; flex-direction: column; align-items: center; justify-content: center; flex: 1; overflow-y: auto; padding: 40px 20px; }
         .fusion-card { background: white; padding: 40px; border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,0.08); text-align: center; max-width: 600px; width: 100%; border: 1px solid var(--border); }
         .fusion-card h2 { color: var(--primary); margin-top: 0; margin-bottom: 15px; }
         .fusion-card p { color: #666; line-height: 1.5; margin-bottom: 25px; }
         .fusion-input-zone { background: #f9f9f9; border: 2px dashed #ccc; padding: 30px; border-radius: 8px; margin-bottom: 25px; transition: 0.3s; }
         .fusion-input-zone:hover { border-color: var(--primary); background: #f0f7ff; }
-        #status-fusion { margin-top: 20px; font-weight: bold; color: #2ca02c; font-size: 1.1rem; min-height: 24px;}
+        .status-msg { margin-top: 20px; font-weight: bold; font-size: 1.1rem; min-height: 24px;}
 
         @media (max-width: 900px) {
             .analyzer-toolbar { flex-direction: column; align-items: stretch; }
@@ -104,11 +107,12 @@
 
     <header>
         <div class="header-top">
-            <h1 class="header-title">MULTITOOL</h1>
+            <h1 class="header-title">Carrier Suite Expert Multi-Outils</h1>
         </div>
         <div class="tab-nav">
             <button id="btn-analyseur" class="tab-btn active" onclick="switchTab('analyseur')">📊 Analyseur & BlackBox</button>
             <button id="btn-fusion" class="tab-btn" onclick="switchTab('fusion')">🔗 Fusionneur de Trend (CSV)</button>
+            <button id="btn-abound" class="tab-btn" onclick="switchTab('abound')">🔄 Convertir fichier Abound</button>
         </div>
     </header>
 
@@ -150,7 +154,7 @@
                 <div id="drop-overlay" onclick="document.getElementById('file-input').click()">
                     <svg width="50" height="50" viewBox="0 0 24 24" fill="none" stroke="#005eb8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
                     <h2>Glissez vos fichiers CSV (Trend ou BlackBox) ici</h2>
-                    <p>Conseil : Si vous avez plusieurs Trend, utilisez d'abord le "Fusionneur" !</p>
+                    <p>Conseil : Vous pouvez utiliser les outils de Fusion ou Conversion dans les onglets ci-dessus !</p>
                 </div>
                 
                 <div id="plot-container"></div>
@@ -193,7 +197,23 @@
                 </div>
                 
                 <button class="btn btn-blue" style="font-size: 1.1rem; padding: 12px 24px; width: 100%;" onclick="mergeFiles()">Fusionner et Télécharger</button>
-                <div id="status-fusion"></div>
+                <div id="status-fusion" class="status-msg" style="color: #2ca02c;"></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="tab-abound" class="tab-pane">
+        <div class="fusion-wrapper">
+            <div class="fusion-card">
+                <h2>Convertisseur Fichier Abound (XLSX)</h2>
+                <p>Convertissez les exports Excel lourds et décousus (courbes d'opération) en un journal CSV propre, standardisé et continu, avec la correction temporelle automatique (Forward-fill).</p>
+                
+                <div class="fusion-input-zone">
+                    <input type="file" id="file-abound" accept=".xlsx" style="font-size: 1rem; cursor: pointer;" />
+                </div>
+                
+                <button class="btn btn-green" style="font-size: 1.1rem; padding: 12px 24px; width: 100%;" onclick="processAboundFile()">Convertir et Télécharger CSV</button>
+                <div id="status-abound" class="status-msg" style="color: #0056b3;"></div>
             </div>
         </div>
     </div>
@@ -217,6 +237,181 @@
             }
         }
 
+        // ==========================================
+        // LOGIQUE DU CONVERTISSEUR ABOUND (Onglet 3)
+        // ==========================================
+        async function processAboundFile() {
+            const fileInput = document.getElementById('file-abound');
+            const statusDiv = document.getElementById('status-abound');
+
+            if (fileInput.files.length === 0) {
+                alert("Veuillez d'abord sélectionner un fichier XLSX.");
+                return;
+            }
+
+            statusDiv.style.color = "#ff7f0e";
+            statusDiv.innerText = "Lecture du fichier en cours... (Cela peut prendre quelques secondes)";
+
+            const file = fileInput.files[0];
+            const reader = new FileReader();
+
+            reader.onload = function(e) {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    
+                    // On force la lecture des dates par SheetJS
+                    const workbook = XLSX.read(data, { type: 'array', cellDates: true });
+                    const timeSeriesData = {};
+
+                    // Dictionnaire des variables (Nom CSV cible -> Nom d'en-tête Excel, toujours en anglais dans le fichier)
+                    const columnMapping = {
+                        "TEMP_OAT": "Outdoor Air Temperature",
+                        "TEMP_EWT": "Entering Water Temp",
+                        "TEMP_LWT": "Leaving Water Temp",
+                        "GENUNIT_CTRL": "Control Point",
+                        "TEMP_SCT_A": "Saturated Cond Tmp", // Capture "Saturated Cond Tmp cir A"
+                        "TEMP_SST_A": "Saturated Suction Temp", // Capture "Saturated Suction Temp A"
+                        "OUTPUTS_VCP_A": "Circuit A Total Capacity",
+                        "GENUNIT_CAPA": "Unit Total Capacity",
+                        "OUTPUTS_EXV_A": "EXV Position",
+                        "PUMPSTAT_FLOW": "Water Flow",
+                        "PUMPSTAT_P_OUT": "Raw Leaving Water Press",
+                        "PUMPSTAT_P_IN": "Raw Entering Water Press"
+                    };
+
+                    // Fonction qui scanne une feuille pour trouver nos colonnes
+                    function extractAnySheet(sheetName) {
+                        // On ignore les onglets de synthèse peu importe la langue
+                        if (sheetName.toLowerCase().includes("synthesis") || sheetName.toLowerCase().includes("synthèse")) {
+                            return;
+                        }
+
+                        const sheet = workbook.Sheets[sheetName];
+                        const json = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: true });
+                        
+                        if (json.length < 2) return;
+                        
+                        const headers = json[0];
+                        let columnsToProcess = [];
+                        
+                        // Chercher les en-têtes correspondants dans la 1ère ligne
+                        for (let c = 0; c < headers.length; c++) {
+                            if (headers[c] && typeof headers[c] === 'string') {
+                                for (const [csvKey, excelHeader] of Object.entries(columnMapping)) {
+                                    if (headers[c].includes(excelHeader)) {
+                                        columnsToProcess.push({ index: c, key: csvKey });
+                                    }
+                                }
+                            }
+                        }
+
+                        // Parcourir les données trouvées
+                        for (let i = 1; i < json.length; i++) {
+                            const row = json[i];
+                            if (!row) continue;
+
+                            for (const col of columnsToProcess) {
+                                const timeVal = row[col.index];     
+                                const dataVal = row[col.index + 1]; 
+                                
+                                if (timeVal !== undefined && timeVal !== null && dataVal !== undefined && dataVal !== "") {
+                                    let dateObj = null;
+
+                                    if (timeVal instanceof Date) {
+                                        dateObj = timeVal;
+                                    } else if (typeof timeVal === 'string') {
+                                        const parts = timeVal.match(/(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2}):(\d{2})/);
+                                        if (parts) {
+                                            dateObj = new Date(parts[1], parts[2] - 1, parts[3], parts[4], parts[5], parts[6]);
+                                        } else {
+                                            dateObj = new Date(timeVal);
+                                        }
+                                    }
+
+                                    if (dateObj && !isNaN(dateObj.getTime())) {
+                                        const tsStr = Math.floor(dateObj.getTime() / 1000).toString(); 
+                                        if (!timeSeriesData[tsStr]) {
+                                            timeSeriesData[tsStr] = { dateObj: dateObj };
+                                        }
+                                        timeSeriesData[tsStr][col.key] = dataVal;
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // On scanne *absolument tous* les onglets un par un
+                    workbook.SheetNames.forEach(sheetName => {
+                        extractAnySheet(sheetName);
+                    });
+
+                    const header1 = "(s);Date;Time;TEMP_OAT(°C);TEMP_EWT(°C);TEMP_LWT(°C);GENUNIT_CTRL_PNT(°C);GENUNIT_CAPA_T(%);OUTPUTS_RV_A;TEMP_SCT_A(°C);TEMP_SST_A(°C);CAPACTRL_SH_A(^C);OUTPUTS_VCP_A(%);OUTPUTS_VFAN_A(%);OUTPUTS_EXV_A(%);DEFROST_frost_a(%);GENUNIT_CAPB_T(%);OUTPUTS_RV_B;TEMP_SCT_B(°C);TEMP_SST_B(°C);CAPACTRL_SH_B(^C);OUTPUTS_VCP_B(%);OUTPUTS_VFAN_B(%);OUTPUTS_EXV_B(%);DEFROST_frost_b(%);CAPACTRL_over_cap;PUMPSTAT_WAT_FLOW(l/sec);PUMPSTAT_W_P_OUT(KPa);PUMPSTAT_W_P_IN(KPa);ALARMRST_alarm_1c";
+                    const header2 = "Data in Metric units";
+                    let csvContent = header1 + "\r\n" + header2 + "\r\n";
+
+                    const sortedTimestamps = Object.keys(timeSeriesData).sort((a, b) => parseInt(a) - parseInt(b));
+
+                    let currentState = {
+                        TEMP_OAT: "0.0", TEMP_EWT: "0.0", TEMP_LWT: "0.0", GENUNIT_CTRL: "0.0",
+                        GENUNIT_CAPA: "0", TEMP_SCT_A: "0.0", TEMP_SST_A: "0.0", OUTPUTS_VCP_A: "0.0",
+                        OUTPUTS_EXV_A: "0.0", PUMPSTAT_FLOW: "0.0", PUMPSTAT_P_OUT: "0.0", PUMPSTAT_P_IN: "0.0"
+                    };
+
+                    sortedTimestamps.forEach(ts => {
+                        const d = timeSeriesData[ts];
+                        const dateObj = d.dateObj;
+                        const unixSec = ts;
+
+                        const dd = String(dateObj.getDate()).padStart(2, '0');
+                        const mm = String(dateObj.getMonth() + 1).padStart(2, '0');
+                        const yy = String(dateObj.getFullYear()).slice(-2);
+                        const dateStr = `${dd}.${mm}.${yy}`;
+
+                        const hh = String(dateObj.getHours()).padStart(2, '0');
+                        const min = String(dateObj.getMinutes()).padStart(2, '0');
+                        const ss = String(dateObj.getSeconds()).padStart(2, '0');
+                        const timeStr = `${hh}:${min}:${ss}`;
+
+                        for (const varKey in currentState) {
+                            if (d[varKey] !== undefined) {
+                                currentState[varKey] = d[varKey];
+                            }
+                        }
+
+                        const row = [
+                            unixSec, dateStr, timeStr,
+                            currentState.TEMP_OAT, currentState.TEMP_EWT, currentState.TEMP_LWT, currentState.GENUNIT_CTRL,
+                            currentState.GENUNIT_CAPA, "0", currentState.TEMP_SCT_A, currentState.TEMP_SST_A, "0.0",
+                            currentState.OUTPUTS_VCP_A, "0.0", currentState.OUTPUTS_EXV_A, "0", "0", "0",
+                            "-17.8", "-17.8", "0.0", "0.0", "0.0", "0.0", "0", "0",
+                            currentState.PUMPSTAT_FLOW, currentState.PUMPSTAT_P_OUT, currentState.PUMPSTAT_P_IN, ""
+                        ];
+
+                        csvContent += row.join(";") + ";\r\n";
+                    });
+
+                    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                    const link = document.createElement("a");
+                    const url = URL.createObjectURL(blob);
+                    link.setAttribute("href", url);
+                    link.setAttribute("download", "AWHP_log_Abound_Converti.csv");
+                    link.style.visibility = 'hidden';
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+
+                    statusDiv.innerText = "Conversion réussie ! Le fichier a été téléchargé.";
+                    statusDiv.style.color = "#28a745";
+
+                } catch (err) {
+                    console.error(err);
+                    statusDiv.innerText = "Erreur pendant la lecture du fichier XLSX.";
+                    statusDiv.style.color = "red";
+                }
+            };
+
+            reader.readAsArrayBuffer(file);
+        }
 
         // ==========================================
         // LOGIQUE DU FUSIONNEUR (Onglet 2)
@@ -271,7 +466,6 @@
                 status.innerText = `Terminé ! ${files.length} fichiers fusionnés avec succès.`;
             }, 100);
         }
-
 
         // ==========================================
         // LOGIQUE DE L'ANALYSEUR (Onglet 1)
